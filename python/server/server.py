@@ -12,16 +12,21 @@ def main():
         server.listen()
         print(f'Listening on {HOST}:{PORT}')
 
-        conn, addr = server.accept()
-        print(f'{addr} connected to server')
+        clients = {}
+        for i in range(2):
+            conn, addr = server.accept()
+            print(f'{addr} connected to server')
+            clients[addr] = conn
 
-        with conn:
+        with list(clients.values())[0] as conn1, list(clients.values())[1] as conn2:
             while True:
-                message = conn.recv(MESSAGE_LENGTH).decode()
-                print(f'{addr} sent: {message}')
-                if message == 'exit':
-                    print(f'{addr} disconnected from server')
-                    break
+                message = conn1.recv(MESSAGE_LENGTH).decode()
+                print(f'1 sent: {message}')
+                message = conn2.recv(MESSAGE_LENGTH).decode()
+                print(f'2 sent: {message}')
+                # if message == 'exit':
+                # print(f'{addr} disconnected from server')
+                # break
 
 
 if __name__ == '__main__':
