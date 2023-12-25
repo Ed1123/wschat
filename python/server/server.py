@@ -10,13 +10,17 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
         server.listen()
+        print(f'Listening on {HOST}:{PORT}')
+
         conn, addr = server.accept()
+        print(f'{addr} connected to server')
+
         with conn:
-            print('Connected by', addr)
             while True:
                 message = conn.recv(MESSAGE_LENGTH).decode()
-                print(message)
+                print(f'{addr} sent: {message}')
                 if message == 'exit':
+                    print(f'{addr} disconnected from server')
                     break
 
 
