@@ -1,9 +1,39 @@
-# Echo server program
 import socket
+import threading
+from dataclasses import dataclass
 
-HOST = 'localhost'  # Symbolic name meaning all available interfaces
-PORT = 50007  # Arbitrary non-privileged port
+HOST = 'localhost'
+PORT = 50007
 MESSAGE_LENGTH = 1024
+EXIT_MESSAGE = 'exit'
+
+
+@dataclass
+class Client:
+    conn: socket.socket
+    ip_addr: str
+    port: int
+
+
+def handle_new_clients(server: socket.socket, stop_event: threading.Event):
+    try:
+        while not stop_event.is_set():
+            conn, addr = server.accept()
+            client = Client(conn, addr[0], addr[1])
+            print(f'{client.ip_addr}:{client.port} connected to server')
+            threading.Thread(target=handle_client_messages, args=(client,)).start()
+    except ConnectionAbortedError:
+        print('Closing server...')
+
+
+def handle_client_messages(client: Client):
+    with client.conn as conn:
+        while True:
+            message = conn.recv(MESSAGE_LENGTH).decode()
+            print(f'{client.ip_addr}:{client.port} sent: {message}')
+            if message == 'exit':
+                print(f'{client.ip_addr}:{client.port} disconnected from server')
+                break
 
 
 def main():
@@ -12,21 +42,19 @@ def main():
         server.listen()
         print(f'Listening on {HOST}:{PORT}')
 
-        clients = {}
-        for i in range(2):
-            conn, addr = server.accept()
-            print(f'{addr} connected to server')
-            clients[addr] = conn
+        stop_event = threading.Event()
+        clients_thread = threading.Thread(
+            target=handle_new_clients, args=(server, stop_event)
+        )
 
-        with list(clients.values())[0] as conn1, list(clients.values())[1] as conn2:
-            while True:
-                message = conn1.recv(MESSAGE_LENGTH).decode()
-                print(f'1 sent: {message}')
-                message = conn2.recv(MESSAGE_LENGTH).decode()
-                print(f'2 sent: {message}')
-                # if message == 'exit':
-                # print(f'{addr} disconnected from server')
-                # break
+        try:
+            clients_thread.start()
+            input('Press enter to close server\n')
+        except KeyboardInterrupt:
+            pass
+        stop_event.set()
+        server.close()
+        clients_thread.join()
 
 
 if __name__ == '__main__':
