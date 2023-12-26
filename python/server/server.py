@@ -2,7 +2,7 @@ import socket
 import threading
 from dataclasses import dataclass
 
-HOST = 'localhost'
+HOST = ''
 PORT = 50007
 MESSAGE_LENGTH = 1024
 EXIT_MESSAGE = 'exit'
@@ -40,7 +40,8 @@ def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
         server.listen()
-        print(f'Listening on {HOST}:{PORT}')
+        host, port = server.getsockname()
+        print(f'Listening on {host}:{port}')
 
         stop_event = threading.Event()
         clients_thread = threading.Thread(
