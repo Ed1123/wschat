@@ -6,6 +6,7 @@ HOST = ''
 PORT = 50007
 MESSAGE_LENGTH = 1024
 EXIT_MESSAGE = 'exit'
+TIMEOUT = 0.1
 
 
 @dataclass
@@ -16,29 +17,38 @@ class Client:
 
 
 def handle_new_clients(server: socket.socket, stop_event: threading.Event):
-    try:
-        while not stop_event.is_set():
+    while not stop_event.is_set():
+        try:
             conn, addr = server.accept()
-            client = Client(conn, addr[0], addr[1])
-            print(f'{client.ip_addr}:{client.port} connected to server')
-            threading.Thread(target=handle_client_messages, args=(client,)).start()
-    except ConnectionAbortedError:
-        print('Closing server...')
+        except socket.timeout:
+            continue
+        client = Client(conn, addr[0], addr[1])
+        print(f'{client.ip_addr}:{client.port} connected to server')
+        threading.Thread(
+            target=handle_client_messages, args=(client, stop_event)
+        ).start()
+    print('Closing server...')
 
 
-def handle_client_messages(client: Client):
-    with client.conn as conn:
-        while True:
+def handle_client_messages(client: Client, stop_event: threading.Event):
+    conn = client.conn
+    conn.settimeout(TIMEOUT)
+    message = ''
+    while not stop_event.is_set() and message != EXIT_MESSAGE:
+        try:
             message = conn.recv(MESSAGE_LENGTH).decode()
             print(f'{client.ip_addr}:{client.port} sent: {message}')
-            if message == 'exit':
-                print(f'{client.ip_addr}:{client.port} disconnected from server')
-                break
+        except TimeoutError:
+            pass
+    conn.shutdown(socket.SHUT_RDWR)
+    conn.close()
+    print(f'{client.ip_addr}:{client.port} disconnected from server')
 
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
+        server.settimeout(TIMEOUT)
         server.listen()
         host, port = server.getsockname()
         print(f'Listening on {host}:{port}')
