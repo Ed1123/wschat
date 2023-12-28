@@ -16,33 +16,51 @@ class Client:
     port: int
 
 
-def handle_new_clients(server: socket.socket, stop_event: threading.Event):
+def handle_new_clients(
+    server: socket.socket, stop_event: threading.Event, clients: dict[str, Client]
+):
     while not stop_event.is_set():
         try:
             conn, addr = server.accept()
         except socket.timeout:
             continue
         client = Client(conn, addr[0], addr[1])
+        clients[f'{client.ip_addr}:{client.port}'] = client
         print(f'{client.ip_addr}:{client.port} connected to server')
         threading.Thread(
-            target=handle_client_messages, args=(client, stop_event)
+            target=handle_client_messages, args=(client, stop_event, clients)
         ).start()
+    for client in clients.values():
+        client.conn.sendall('Connection closed.'.encode())
+        client.conn.close()
+        print(f'{client.ip_addr}:{client.port} forcefully disconnected from server')
     print('Closing server...')
 
 
-def handle_client_messages(client: Client, stop_event: threading.Event):
+def handle_client_messages(
+    client: Client, stop_event: threading.Event, clients: dict[str, Client]
+):
     conn = client.conn
     conn.settimeout(TIMEOUT)
     message = ''
     while not stop_event.is_set() and message != EXIT_MESSAGE:
         try:
             message = conn.recv(MESSAGE_LENGTH).decode()
-            print(f'{client.ip_addr}:{client.port} sent: {message}')
+            chat_msg = f'{client.ip_addr}:{client.port} sent: {message}'
+            print(chat_msg)
+            broadcast_message(client, chat_msg, clients)
         except TimeoutError:
-            pass
-    conn.shutdown(socket.SHUT_RDWR)
+            continue
+    clients.pop(f'{client.ip_addr}:{client.port}')
     conn.close()
     print(f'{client.ip_addr}:{client.port} disconnected from server')
+
+
+def broadcast_message(sender: Client, message: str, clients: dict[str, Client]):
+    for client in clients.values():
+        if client == sender:
+            continue
+        client.conn.sendall(message.encode())
 
 
 def main():
@@ -54,8 +72,9 @@ def main():
         print(f'Listening on {host}:{port}')
 
         stop_event = threading.Event()
+        clients = {}
         clients_thread = threading.Thread(
-            target=handle_new_clients, args=(server, stop_event)
+            target=handle_new_clients, args=(server, stop_event, clients)
         )
 
         try:
