@@ -16,7 +16,7 @@ TIMEOUT = 0.1
 
 def handle_send_message(s: socket.socket, stop_event: threading.Event):
     while not stop_event.is_set():
-        msg = input('message: ')
+        msg = input()
         s.sendall(msg.encode())
         if msg == 'exit':
             stop_event.set()
@@ -27,7 +27,7 @@ def handle_receive_message(s: socket.socket, stop_event: threading.Event):
     while not stop_event.is_set():
         try:
             message = s.recv(1024).decode()
-        except socket.timeout:
+        except BlockingIOError:
             continue
         print(message)
         if message == 'Connection closed.':
@@ -43,8 +43,8 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         print(f'Could not connect to {HOST}:{PORT}')
         exit(1)
     print(f'Connected to {HOST}:{PORT}')
-    s.settimeout(TIMEOUT)
-    print('Press enter to send message to server')
+    s.setblocking(False)
+    print('Type your message and press enter to send it')
     print('Type "exit" to disconnect from server')
     stop_event = threading.Event()
     send_thread = threading.Thread(target=handle_send_message, args=(s, stop_event))

@@ -22,7 +22,7 @@ def handle_new_clients(
     while not stop_event.is_set():
         try:
             conn, addr = server.accept()
-        except socket.timeout:
+        except BlockingIOError:
             continue
         client = Client(conn, addr[0], addr[1])
         clients[f'{client.ip_addr}:{client.port}'] = client
@@ -41,7 +41,6 @@ def handle_client_messages(
     client: Client, stop_event: threading.Event, clients: dict[str, Client]
 ):
     conn = client.conn
-    conn.settimeout(TIMEOUT)
     message = ''
     while not stop_event.is_set() and message != EXIT_MESSAGE:
         try:
@@ -49,7 +48,7 @@ def handle_client_messages(
             chat_msg = f'{client.ip_addr}:{client.port} sent: {message}'
             print(chat_msg)
             broadcast_message(client, chat_msg, clients)
-        except TimeoutError:
+        except BlockingIOError:
             continue
     clients.pop(f'{client.ip_addr}:{client.port}')
     conn.close()
@@ -66,7 +65,7 @@ def broadcast_message(sender: Client, message: str, clients: dict[str, Client]):
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
         server.bind((HOST, PORT))
-        server.settimeout(TIMEOUT)
+        server.setblocking(False)
         server.listen()
         host, port = server.getsockname()
         print(f'Listening on {host}:{port}')
